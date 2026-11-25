@@ -1,5 +1,6 @@
 #include "CommandParser.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 namespace {
@@ -16,6 +17,9 @@ char errorLongitud[] = "ERR LINE_TOO_LONG\r\n";
 char errorCaracter[] = "ERR INVALID_CHAR\r\n";
 char errorArgumentos[] = "ERR BAD_ARGS\r\n";
 char errorI2c[] = "ERR I2C\r\n";
+char errorRango[] = "ERR RANGE\r\n";
+char errorPwm[] = "ERR PWM\r\n";
+char errorDialAuto[] = "ERR DIAL_AUTO\r\n";
 
 // --- Conversion de bytes hexadecimales ---
 int8_t LeerDigitoHex(char caracter)
@@ -72,8 +76,10 @@ char *ResponderEstado(bool activo)
 }
 
 CommandParser::CommandParser(PanelI2c &panelI2c, DigitalOutput &ledEstado,
-                             DigitalOutput &salidaAlarma, HoldControl &controlHold)
-    : panel(panelI2c), salida1(ledEstado), salida2(salidaAlarma), hold(controlHold)
+                             DigitalOutput &salidaAlarma, HoldControl &controlHold,
+                             PwmChannel &pwmBuzzer, PwmChannel &pwmDial)
+    : panel(panelI2c), salida1(ledEstado), salida2(salidaAlarma), hold(controlHold),
+      buzzer(pwmBuzzer), dial(pwmDial)
 {
 }
 
@@ -148,7 +154,14 @@ char *CommandParser::FinalizarLinea()
     if (strncmp(linea, "HOLD ", 5) == 0) {
         return ProcesarHold(linea + 5);
     }
-    if (strcmp(linea, "OUT") == 0 || strcmp(linea, "HOLD") == 0) {
+    if (strncmp(linea, "PWM ", 4) == 0) {
+        return ProcesarPwm();
+    }
+    if (strncmp(linea, "DIAL ", 5) == 0) {
+        return ProcesarDial(linea + 5);
+    }
+    if (strcmp(linea, "OUT") == 0 || strcmp(linea, "HOLD") == 0 ||
+        strcmp(linea, "PWM") == 0 || strcmp(linea, "DIAL") == 0) {
         return errorArgumentos;
     }
 
@@ -197,6 +210,80 @@ char *CommandParser::ProcesarHold(const char *accion)
         return ResponderEstado(hold.obtenerEstado());
     } else {
         return errorArgumentos;
+    }
+    return respuestaOk;
+}
+
+// --- Frecuencia y duty de los dos PWM ---
+char *CommandParser::ProcesarPwm()
+{
+    char numero = linea[4];
+    if ((numero != '1' && numero != '2') || strncmp(linea + 5, " FREQ ", 6) != 0) {
+        return errorArgumentos;
+    }
+
+    const char *textoFrecuencia = linea + 11;
+    if (*textoFrecuencia == '-') {
+        return errorRango;
+    }
+    if (*textoFrecuencia < '0' || *textoFrecuencia > '9') {
+        return errorArgumentos;
+    }
+
+    char *fin = nullptr;
+    uint32_t frecuenciaHz = strtoul(textoFrecuencia, &fin, 10);
+    if (fin == textoFrecuencia || strncmp(fin, " DUTY ", 6) != 0) {
+        return errorArgumentos;
+    }
+    const char *textoDuty = fin + 6;
+    float porcentaje = strtof(textoDuty, &fin);
+    if (fin == textoDuty || *fin != '\0') {
+        return errorArgumentos;
+    }
+
+    PwmChannel *salida = &buzzer;
+    if (numero == '2') {
+        if (dial.esAutomatico()) {
+            return errorDialAuto;
+        }
+        salida = &dial;
+    }
+
+    PwmChannel::Resultado resultado = salida->configurar(frecuenciaHz, porcentaje);
+    if (resultado == PwmChannel::Resultado::FueraDeRango) {
+        return errorRango;
+    }
+    if (resultado == PwmChannel::Resultado::Error) {
+        return errorPwm;
+    }
+    return respuestaOk;
+}
+
+char *CommandParser::ProcesarDial(const char *accion)
+{
+    if (strcmp(accion, "MODE AUTO") == 0) {
+        dial.fijarModoAutomatico(true);
+        return respuestaOk;
+    }
+    if (strcmp(accion, "MODE MANUAL") == 0) {
+        dial.fijarModoAutomatico(false);
+        return respuestaOk;
+    }
+    if (strncmp(accion, "ANGLE ", 6) != 0) {
+        return errorArgumentos;
+    }
+
+    const char *textoAngulo = accion + 6;
+    char *fin = nullptr;
+    float grados = strtof(textoAngulo, &fin);
+    if (fin == textoAngulo || *fin != '\0') {
+        return errorArgumentos;
+    }
+    if (dial.esAutomatico()) {
+        return errorDialAuto;
+    }
+    if (!dial.moverAngulo(grados)) {
+        return errorRango;
     }
     return respuestaOk;
 }

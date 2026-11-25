@@ -5,6 +5,8 @@
 #include <string.h>
 
 extern "C" I2C_HandleTypeDef hi2c1;
+extern "C" TIM_HandleTypeDef htim3;
+extern "C" TIM_HandleTypeDef htim4;
 
 namespace {
 constexpr uint16_t capacidadRx = 256;
@@ -17,13 +19,19 @@ PanelI2c panel(&hi2c1);
 DigitalOutput ledEstado(STATUS_LED_GPIO_Port, STATUS_LED_Pin, true);
 DigitalOutput salidaAlarma(ALARM_OUT_GPIO_Port, ALARM_OUT_Pin);
 HoldControl hold;
-CommandParser parser(panel, ledEstado, salidaAlarma, hold);
+PwmChannel buzzer(&htim3, TIM_CHANNEL_1, PwmChannel::Tipo::Buzzer);
+PwmChannel dial(&htim4, TIM_CHANNEL_3, PwmChannel::Tipo::Servo);
+CommandParser parser(panel, ledEstado, salidaAlarma, hold, buzzer, dial);
 char *respuestaPendiente = nullptr;
 }
 
 void App_Iniciar(void)
 {
     panel.Inicializar();
+    // CubeMX deja el buzzer en silencio y el servo en el centro.
+    if (buzzer.iniciar() != HAL_OK || dial.iniciar() != HAL_OK) {
+        Error_Handler();
+    }
 }
 
 extern "C" void HAL_GPIO_EXTI_Callback(uint16_t pin)

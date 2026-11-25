@@ -4,6 +4,7 @@
 #include "DigitalOutput.h"
 #include "HoldControl.h"
 #include "PanelI2c.h"
+#include "PwmChannel.h"
 
 class CommandParser {
 private:
@@ -13,6 +14,8 @@ private:
     DigitalOutput &salida1;
     DigitalOutput &salida2;
     HoldControl &hold;
+    PwmChannel &buzzer;
+    PwmChannel &dial;
     char linea[64] = {};
     uint16_t longitud = 0;
     EstadoLinea estado = Valida;
@@ -25,10 +28,13 @@ private:
     char *ProcesarPcf();
     char *ProcesarSalida();
     char *ProcesarHold(const char *accion);
+    char *ProcesarPwm();
+    char *ProcesarDial(const char *accion);
 
 public:
     CommandParser(PanelI2c &panelI2c, DigitalOutput &ledEstado,
-                  DigitalOutput &salidaAlarma, HoldControl &controlHold);
+                  DigitalOutput &salidaAlarma, HoldControl &controlHold,
+                  PwmChannel &pwmBuzzer, PwmChannel &pwmDial);
     char *ProcesarByte(uint8_t dato);
     char *ProcesarEscaneo();
     bool EscaneoActivo() const;
