@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+void App_Iniciar(void);
 void App_Procesar(void);
 void App_UsbRecibir(const uint8_t *datos, uint32_t longitud);
 void App_UsbReiniciar(void);

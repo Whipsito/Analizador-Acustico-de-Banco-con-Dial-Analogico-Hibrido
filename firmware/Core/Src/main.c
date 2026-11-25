@@ -109,7 +109,7 @@ int main(void)
   MX_TIM4_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-
+  App_Iniciar();
   /* USER CODE END 2 */
 
   /* Infinite loop */

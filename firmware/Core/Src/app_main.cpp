@@ -4,6 +4,8 @@
 
 #include <string.h>
 
+extern "C" I2C_HandleTypeDef hi2c1;
+
 namespace {
 constexpr uint16_t capacidadRx = 256;
 uint8_t bufferRx[capacidadRx];
@@ -11,8 +13,14 @@ volatile uint16_t indiceLectura = 0;
 volatile uint16_t indiceEscritura = 0;
 volatile bool reinicioPendiente = false;
 
-CommandParser parser;
+PanelI2c panel(&hi2c1);
+CommandParser parser(panel);
 char *respuestaPendiente = nullptr;
+}
+
+void App_Iniciar(void)
+{
+    panel.Inicializar();
 }
 
 void App_UsbRecibir(const uint8_t *datos, uint32_t longitud)
@@ -58,7 +66,7 @@ void App_Procesar(void)
         if (CDC_Transmit_FS(datos, longitud) == USBD_OK) {
             respuestaPendiente = nullptr;
         }
-    } else if (indiceLectura != indiceEscritura) {
+    } else if (!parser.EscaneoActivo() && indiceLectura != indiceEscritura) {
         dato = bufferRx[indiceLectura];
         indiceLectura = (indiceLectura + 1) % capacidadRx;
         datoDisponible = true;
@@ -68,5 +76,9 @@ void App_Procesar(void)
 
     if (datoDisponible) {
         respuestaPendiente = parser.ProcesarByte(dato);
+    } else if (parser.EscaneoActivo()) {
+        respuestaPendiente = parser.ProcesarEscaneo();
+    } else {
+        panel.ActualizarBotones();
     }
 }

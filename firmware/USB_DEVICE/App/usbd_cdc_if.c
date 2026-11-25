@@ -300,7 +300,13 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
   {
     return USBD_BUSY;
   }
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
+  if (Len > sizeof(UserTxBufferFS))
+  {
+    return USBD_FAIL;
+  }
+  /* El parser puede reutilizar su respuesta mientras USB envia esta copia. */
+  memcpy(UserTxBufferFS, Buf, Len);
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, Len);
   result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
   /* USER CODE END 7 */
   return result;
