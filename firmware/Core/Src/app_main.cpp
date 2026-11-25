@@ -14,13 +14,24 @@ volatile uint16_t indiceEscritura = 0;
 volatile bool reinicioPendiente = false;
 
 PanelI2c panel(&hi2c1);
-CommandParser parser(panel);
+DigitalOutput ledEstado(STATUS_LED_GPIO_Port, STATUS_LED_Pin, true);
+DigitalOutput salidaAlarma(ALARM_OUT_GPIO_Port, ALARM_OUT_Pin);
+HoldControl hold;
+CommandParser parser(panel, ledEstado, salidaAlarma, hold);
 char *respuestaPendiente = nullptr;
 }
 
 void App_Iniciar(void)
 {
     panel.Inicializar();
+}
+
+extern "C" void HAL_GPIO_EXTI_Callback(uint16_t pin)
+{
+    // La interrupcion solo avisa; el bucle principal revisa el rebote.
+    if (pin == HOLD_BUTTON_Pin) {
+        hold.RegistrarFlanco();
+    }
 }
 
 void App_UsbRecibir(const uint8_t *datos, uint32_t longitud)
@@ -73,6 +84,8 @@ void App_Procesar(void)
     }
 
     __set_PRIMASK(mascara);
+
+    hold.Actualizar();
 
     if (datoDisponible) {
         respuestaPendiente = parser.ProcesarByte(dato);

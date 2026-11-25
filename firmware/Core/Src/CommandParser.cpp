@@ -8,6 +8,8 @@ constexpr uint8_t ultimaDireccionI2c = 0x77;
 char respuestaPing[] = "OK PONG\r\n";
 char respuestaStatus[] = "OK STATUS READY\r\n";
 char respuestaOk[] = "OK\r\n";
+char respuestaActivo[] = "OK 1\r\n";
+char respuestaInactivo[] = "OK 0\r\n";
 char respuestaSinDispositivos[] = "OK NONE\r\n";
 char errorComando[] = "ERR UNKNOWN_CMD\r\n";
 char errorLongitud[] = "ERR LINE_TOO_LONG\r\n";
@@ -59,9 +61,19 @@ void EscribirHex(char *texto, uint8_t valor)
     texto[2] = digitos[valor >> 4];
     texto[3] = digitos[valor & 0x0F];
 }
+
+char *ResponderEstado(bool activo)
+{
+    if (activo) {
+        return respuestaActivo;
+    }
+    return respuestaInactivo;
+}
 }
 
-CommandParser::CommandParser(PanelI2c &panelI2c) : panel(panelI2c)
+CommandParser::CommandParser(PanelI2c &panelI2c, DigitalOutput &ledEstado,
+                             DigitalOutput &salidaAlarma, HoldControl &controlHold)
+    : panel(panelI2c), salida1(ledEstado), salida2(salidaAlarma), hold(controlHold)
 {
 }
 
@@ -130,8 +142,63 @@ char *CommandParser::FinalizarLinea()
     if (strncmp(linea, "PCF ", 4) == 0 || strcmp(linea, "PCF") == 0) {
         return ProcesarPcf();
     }
+    if (strncmp(linea, "OUT ", 4) == 0) {
+        return ProcesarSalida();
+    }
+    if (strncmp(linea, "HOLD ", 5) == 0) {
+        return ProcesarHold(linea + 5);
+    }
+    if (strcmp(linea, "OUT") == 0 || strcmp(linea, "HOLD") == 0) {
+        return errorArgumentos;
+    }
 
     return errorComando;
+}
+
+// --- Comandos de las salidas digitales y del HOLD ---
+char *CommandParser::ProcesarSalida()
+{
+    char numero = linea[4];
+    if ((numero != '1' && numero != '2') || linea[5] != ' ') {
+        return errorArgumentos;
+    }
+
+    DigitalOutput *salida;
+    if (numero == '1') {
+        salida = &salida1;
+    } else {
+        salida = &salida2;
+    }
+
+    const char *accion = linea + 6;
+    if (strcmp(accion, "ON") == 0) {
+        salida->encender();
+    } else if (strcmp(accion, "OFF") == 0) {
+        salida->apagar();
+    } else if (strcmp(accion, "TOGGLE") == 0) {
+        salida->alternar();
+    } else if (strcmp(accion, "GET") == 0) {
+        return ResponderEstado(salida->obtenerEstado());
+    } else {
+        return errorArgumentos;
+    }
+    return respuestaOk;
+}
+
+char *CommandParser::ProcesarHold(const char *accion)
+{
+    if (strcmp(accion, "ON") == 0) {
+        hold.activar();
+    } else if (strcmp(accion, "OFF") == 0) {
+        hold.desactivar();
+    } else if (strcmp(accion, "TOGGLE") == 0) {
+        hold.alternar();
+    } else if (strcmp(accion, "GET") == 0) {
+        return ResponderEstado(hold.obtenerEstado());
+    } else {
+        return errorArgumentos;
+    }
+    return respuestaOk;
 }
 
 char *CommandParser::ProcesarPcf()

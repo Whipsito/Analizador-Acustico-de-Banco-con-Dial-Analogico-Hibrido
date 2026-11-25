@@ -1,6 +1,8 @@
 #ifndef COMMAND_PARSER_H
 #define COMMAND_PARSER_H
 
+#include "DigitalOutput.h"
+#include "HoldControl.h"
 #include "PanelI2c.h"
 
 class CommandParser {
@@ -8,6 +10,9 @@ private:
     enum EstadoLinea { Valida, DemasiadoLarga, CaracterInvalido };
 
     PanelI2c &panel;
+    DigitalOutput &salida1;
+    DigitalOutput &salida2;
+    HoldControl &hold;
     char linea[64] = {};
     uint16_t longitud = 0;
     EstadoLinea estado = Valida;
@@ -18,9 +23,12 @@ private:
 
     char *FinalizarLinea();
     char *ProcesarPcf();
+    char *ProcesarSalida();
+    char *ProcesarHold(const char *accion);
 
 public:
-    explicit CommandParser(PanelI2c &panelI2c);
+    CommandParser(PanelI2c &panelI2c, DigitalOutput &ledEstado,
+                  DigitalOutput &salidaAlarma, HoldControl &controlHold);
     char *ProcesarByte(uint8_t dato);
     char *ProcesarEscaneo();
     bool EscaneoActivo() const;
