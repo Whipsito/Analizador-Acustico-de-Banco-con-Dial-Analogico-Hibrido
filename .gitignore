@@ -33,3 +33,7 @@
 
 # Referencias locales de clase
 /ejemplos_clase/
+
+# Salidas de compilacion de STM32CubeIDE
+/firmware/Debug/
+/firmware/Release/
