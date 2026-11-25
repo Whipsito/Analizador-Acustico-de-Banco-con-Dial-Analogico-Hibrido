@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+
+# Referencias locales de clase
+/ejemplos_clase/
